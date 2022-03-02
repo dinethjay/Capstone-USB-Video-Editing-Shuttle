@@ -26,22 +26,29 @@
 #include "usbd_hid.h"
 /* USER CODE END Includes */
 
+/* Private typedef -----------------------------------------------------------*/
+/* USER CODE BEGIN PTD */
+
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define NUM_BUTTONS 8
 #define MODIFIER_INDEX
 #define KEYCODE_1_INDEX
 #define PACKET_SIZE 8
+// Button Port Defines
+#define GPIO_BUTTON_1_PIN GPIO_PIN_9
+#define GPIO_BUTTON_1_PORT GPIOA
+#define GPIO_BUTTON_2_PIN GPIO_PIN_8
+#define GPIO_BUTTON_2_PORT GPIOA
+#define GPIO_BUTTON_3_PIN GPIO_PIN_15
+#define GPIO_BUTTON_3_PORT GPIOB
+#define GPIO_BUTTON_4_PIN GPIO_PIN_14
+#define GPIO_BUTTON_4_PORT GPIOB
+#define GPIO_BUTTON_5_PIN GPIO_PIN_13
+#define GPIO_BUTTON_5_PORT GPIOB
+
 
 /* USER CODE END PD */
-
-/* Private macro -------------------------------------------------------------*/
-/* USER CODE BEGIN PM */
-
-/* USER CODE END PM */
-
-/* Private typedef -----------------------------------------------------------*/
-/* USER CODE BEGIN PTD */
 
 typedef enum  {false, true} bool;
 
@@ -83,14 +90,24 @@ typedef struct GlobalState
 } GlobalState; // holds state
 /* USER CODE END PTD */
 
+
+/* Private macro -------------------------------------------------------------*/
+/* USER CODE BEGIN PM */
+
+/* USER CODE END PM */
+
 /* Private variables ---------------------------------------------------------*/
-GlobalState globalState;
+
 /* USER CODE BEGIN PV */
 bool System_Init(void);
+GlobalState globalState;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
+void PollUserInput(void);
+void InitShuttle(void);
+void WriteOutputToPC(USBD_HandleTypeDef*);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -128,6 +145,7 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USB_DEVICE_Init();
+  InitShuttle(); // Initiailize data structures
   /* USER CODE BEGIN 2 */
  extern USBD_HandleTypeDef hUsbDeviceFS;
  uint8_t HID_buffer[8] = {0};
@@ -138,21 +156,25 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-	 // HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_9);
-	 // HAL_Delay(2000);
 
     /* USER CODE BEGIN 3 */
-	  HID_buffer[0] = 2; // left shift
-	  HID_buffer[2] = 7;
-	  USBD_HID_SendReport(&hUsbDeviceFS, HID_buffer, 8);
+	  //HID_buffer[0] = 2; // left shift
+	  //HID_buffer[2] = 7;
+	  //USBD_HID_SendReport(&hUsbDeviceFS, HID_buffer, 8);
 
-	  HAL_Delay(20);
+	  //HAL_Delay(20);
+	  //HID_buffer[0] = 0; // left shift
+	  //HID_buffer[2] = 0;
+	  //USBD_HID_SendReport(&hUsbDeviceFS, HID_buffer, 8);
 
-	  HID_buffer1[0] = 0;
-	  HID_buffer1[2] = 0;
-	  USBD_HID_SendReport(&hUsbDeviceFS, HID_buffer1, 8);
-	  HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_9);
-	  HAL_Delay(2000);
+	 // HAL_Delay(20);
+
+	  PollUserInput();
+	  WriteOutputToPC(&hUsbDeviceFS);
+
+
+
+
   }
   /* USER CODE END 3 */
 }
@@ -227,6 +249,114 @@ void Error_Handler(void)
   /* USER CODE END Error_Handler_Debug */
 }
 
+void InitShuttle(void)
+{
+	globalState.buttonPressed.buttonState_1 = false;
+	globalState.buttonPressed.buttonState_2 = false;
+	globalState.buttonPressed.buttonState_3 = false;
+	globalState.buttonPressed.buttonState_4 = false;
+	globalState.buttonPressed.buttonState_5 = false;
+	globalState.buttonPressed.buttonState_6 = false;
+	globalState.buttonPressed.buttonState_7 = false;
+	globalState.buttonPressed.buttonState_8 = false;
+	globalState.buttonPressed.Spare = false;
+	globalState.buttonMappings[0].packet.modifier = 2;
+	globalState.buttonMappings[0].packet.keycode_1 = 7;
+	globalState.buttonMappings[1].packet.modifier = 2;
+	globalState.buttonMappings[1].packet.keycode_1 = 8;
+	globalState.buttonMappings[2].packet.modifier = 2;
+	globalState.buttonMappings[2].packet.keycode_1 = 9;
+	globalState.buttonMappings[3].packet.modifier = 2;
+	globalState.buttonMappings[3].packet.keycode_1 = 0x0A;
+	globalState.buttonMappings[4].packet.modifier = 2;
+	globalState.buttonMappings[4].packet.keycode_1 = 0x0B;
+
+
+}
+void PollUserInput(void) // poll for User Input
+{
+	 if(HAL_GPIO_ReadPin(GPIO_BUTTON_1_PORT, GPIO_BUTTON_1_PIN))
+		  {
+			  globalState.buttonPressed.buttonState_1 = true;
+		  }
+		  else
+		  {
+			  globalState.buttonPressed.buttonState_1 = false;
+
+		  }
+
+		  if(HAL_GPIO_ReadPin(GPIO_BUTTON_2_PORT, GPIO_BUTTON_2_PIN))
+		  {
+			  //HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);
+			  globalState.buttonPressed.buttonState_2 = true;
+		  }
+		  else
+		  {
+			  globalState.buttonPressed.buttonState_2 = false;
+		  }
+
+
+		  if(HAL_GPIO_ReadPin(GPIO_BUTTON_3_PORT, GPIO_BUTTON_3_PIN))
+		  {
+			  globalState.buttonPressed.buttonState_3 = true;
+		  }
+		  else
+		  {
+			  globalState.buttonPressed.buttonState_3 = false;
+		  }
+
+		  if(HAL_GPIO_ReadPin(GPIO_BUTTON_4_PORT, GPIO_BUTTON_4_PIN))
+		  {
+			  globalState.buttonPressed.buttonState_4 = true;		  }
+		  else
+		  {
+			  globalState.buttonPressed.buttonState_4 = false;		  }
+
+		  if(HAL_GPIO_ReadPin(GPIO_BUTTON_5_PORT, GPIO_BUTTON_5_PIN))
+		  {
+			  globalState.buttonPressed.buttonState_5 = true;		  }
+		  else
+		  {
+			  globalState.buttonPressed.buttonState_5 = false;		  }
+}
+
+void WriteOutputToPC(USBD_HandleTypeDef* hUsbDeviceFS)
+{
+	if (globalState.buttonPressed.buttonState_1 == true)
+	{
+		USBD_HID_SendReport(hUsbDeviceFS, globalState.buttonMappings[0].packetBuffer, PACKET_SIZE);
+	}
+	else if (globalState.buttonPressed.buttonState_2 == true)
+	{
+		USBD_HID_SendReport(hUsbDeviceFS, globalState.buttonMappings[1].packetBuffer, PACKET_SIZE);
+	}
+	else if (globalState.buttonPressed.buttonState_3 == true)
+	{
+		USBD_HID_SendReport(hUsbDeviceFS, globalState.buttonMappings[2].packetBuffer, PACKET_SIZE);
+	}
+	else if (globalState.buttonPressed.buttonState_4 == true)
+	{
+		USBD_HID_SendReport(hUsbDeviceFS, globalState.buttonMappings[3].packetBuffer, PACKET_SIZE);
+	}
+	else if (globalState.buttonPressed.buttonState_5 == true)
+	{
+		USBD_HID_SendReport(hUsbDeviceFS, globalState.buttonMappings[4].packetBuffer, PACKET_SIZE);
+	}
+	else
+	{
+		uint8_t HID_buffer[8] = {0};
+		USBD_HID_SendReport(hUsbDeviceFS, HID_buffer, PACKET_SIZE);
+	}
+	globalState.buttonPressed.buttonState_1 = false;
+	globalState.buttonPressed.buttonState_2 = false;
+	globalState.buttonPressed.buttonState_3 = false;
+	globalState.buttonPressed.buttonState_4 = false;
+	globalState.buttonPressed.buttonState_5 = false;
+	globalState.buttonPressed.buttonState_6 = false;
+	globalState.buttonPressed.buttonState_7 = false;
+	globalState.buttonPressed.buttonState_8 = false;
+
+}
 #ifdef  USE_FULL_ASSERT
 /**
   * @brief  Reports the name of the source file and the source line number
