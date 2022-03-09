@@ -46,12 +46,23 @@
 #define GPIO_BUTTON_4_PORT GPIOB
 #define GPIO_BUTTON_5_PIN GPIO_PIN_13
 #define GPIO_BUTTON_5_PORT GPIOB
+#define SET_ALL_BUTTONS 0xFFFF
 
 
 /* USER CODE END PD */
 
 typedef enum  {false, true} bool;
 
+typedef enum {noEvent, errorRollOver, postFail, errorUndefined, letter_a, letter_b, letter_c,
+	letter_d, letter_e, letter_f, letter_g, letter_h, letter_i, letter_j, letter_k, letter_l,
+	letter_m, letter_n, letter_o, letter_p, letter_q, letter_r, letter_s, letter_t, letter_u,
+	letter_v, letter_w, letter_x, letter_y, letter_z, number_1, number_2, number_3, number_4,
+	number_5, number_6, number_7, number_8, number_9, number_0, command_Enter, command_Escape,
+	command_Delete, command_Tab, command_Space, command_Minus, command_Equal} key; // More to Add!
+
+typedef enum {leftCtrl, leftShift = 2, leftAlt = 4, leftGUI = 8, rightCtrl = 16,
+	rightShift = 32, rightAlt = 64,rightGUI = 128
+} modifier;
 typedef struct
 {
 	uint8_t modifier;
@@ -108,6 +119,8 @@ void SystemClock_Config(void);
 void PollUserInput(void);
 void InitShuttle(void);
 void WriteOutputToPC(USBD_HandleTypeDef*);
+void WriteButtonState(bool val, int buttonIndex);
+bool ReadButtonState(int buttonIndex);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -251,25 +264,18 @@ void Error_Handler(void)
 
 void InitShuttle(void)
 {
-	globalState.buttonPressed.buttonState_1 = false;
-	globalState.buttonPressed.buttonState_2 = false;
-	globalState.buttonPressed.buttonState_3 = false;
-	globalState.buttonPressed.buttonState_4 = false;
-	globalState.buttonPressed.buttonState_5 = false;
-	globalState.buttonPressed.buttonState_6 = false;
-	globalState.buttonPressed.buttonState_7 = false;
-	globalState.buttonPressed.buttonState_8 = false;
+	WriteButtonState(false, SET_ALL_BUTTONS); // set all button states to false
 	globalState.buttonPressed.Spare = false;
-	globalState.buttonMappings[0].packet.modifier = 2;
-	globalState.buttonMappings[0].packet.keycode_1 = 7;
-	globalState.buttonMappings[1].packet.modifier = 2;
-	globalState.buttonMappings[1].packet.keycode_1 = 8;
-	globalState.buttonMappings[2].packet.modifier = 2;
-	globalState.buttonMappings[2].packet.keycode_1 = 9;
-	globalState.buttonMappings[3].packet.modifier = 2;
-	globalState.buttonMappings[3].packet.keycode_1 = 0x0A;
-	globalState.buttonMappings[4].packet.modifier = 2;
-	globalState.buttonMappings[4].packet.keycode_1 = 0x0B;
+	globalState.buttonMappings[0].packet.modifier = leftShift;
+	globalState.buttonMappings[0].packet.keycode_1 = letter_d;
+	globalState.buttonMappings[1].packet.modifier = leftShift;
+	globalState.buttonMappings[1].packet.keycode_1 = letter_e;
+	globalState.buttonMappings[2].packet.modifier = leftShift;
+	globalState.buttonMappings[2].packet.keycode_1 = letter_f;
+	globalState.buttonMappings[3].packet.modifier = leftShift;
+	globalState.buttonMappings[3].packet.keycode_1 = letter_g;
+	globalState.buttonMappings[4].packet.modifier = leftShift;
+	globalState.buttonMappings[4].packet.keycode_1 = letter_h;
 
 
 }
@@ -322,40 +328,90 @@ void PollUserInput(void) // poll for User Input
 
 void WriteOutputToPC(USBD_HandleTypeDef* hUsbDeviceFS)
 {
-	if (globalState.buttonPressed.buttonState_1 == true)
+	for (int i = 0 ; i<NUM_BUTTONS; i++)
 	{
-		USBD_HID_SendReport(hUsbDeviceFS, globalState.buttonMappings[0].packetBuffer, PACKET_SIZE);
+		if (ReadButtonState(i) == true)
+		{
+			USBD_HID_SendReport(hUsbDeviceFS, globalState.buttonMappings[i].packetBuffer, PACKET_SIZE);
+			uint8_t HID_buffer[8] = {0};
+			USBD_HID_SendReport(hUsbDeviceFS, HID_buffer, PACKET_SIZE); // Send a null packet
+		}
 	}
-	else if (globalState.buttonPressed.buttonState_2 == true)
-	{
-		USBD_HID_SendReport(hUsbDeviceFS, globalState.buttonMappings[1].packetBuffer, PACKET_SIZE);
-	}
-	else if (globalState.buttonPressed.buttonState_3 == true)
-	{
-		USBD_HID_SendReport(hUsbDeviceFS, globalState.buttonMappings[2].packetBuffer, PACKET_SIZE);
-	}
-	else if (globalState.buttonPressed.buttonState_4 == true)
-	{
-		USBD_HID_SendReport(hUsbDeviceFS, globalState.buttonMappings[3].packetBuffer, PACKET_SIZE);
-	}
-	else if (globalState.buttonPressed.buttonState_5 == true)
-	{
-		USBD_HID_SendReport(hUsbDeviceFS, globalState.buttonMappings[4].packetBuffer, PACKET_SIZE);
-	}
-	else
-	{
-		uint8_t HID_buffer[8] = {0};
-		USBD_HID_SendReport(hUsbDeviceFS, HID_buffer, PACKET_SIZE);
-	}
-	globalState.buttonPressed.buttonState_1 = false;
-	globalState.buttonPressed.buttonState_2 = false;
-	globalState.buttonPressed.buttonState_3 = false;
-	globalState.buttonPressed.buttonState_4 = false;
-	globalState.buttonPressed.buttonState_5 = false;
-	globalState.buttonPressed.buttonState_6 = false;
-	globalState.buttonPressed.buttonState_7 = false;
-	globalState.buttonPressed.buttonState_8 = false;
 
+	WriteButtonState(false, SET_ALL_BUTTONS); // set all button states to false
+
+}
+
+void WriteButtonState(bool val, int buttonIndex)
+{
+	switch (buttonIndex)
+	{
+	case 0:
+		globalState.buttonPressed.buttonState_1 = val;
+		break;
+	case 1:
+		globalState.buttonPressed.buttonState_2 = val;
+		break;
+	case 2:
+		globalState.buttonPressed.buttonState_3 = val;
+		break;
+	case 3:
+		globalState.buttonPressed.buttonState_4 = val;
+		break;
+	case 4:
+		globalState.buttonPressed.buttonState_5 = val;
+		break;
+	case 5:
+		globalState.buttonPressed.buttonState_6 = val;
+		break;
+	case 6:
+		globalState.buttonPressed.buttonState_7 = val;
+		break;
+	case 7:
+		globalState.buttonPressed.buttonState_8 = val;
+		break;
+	case SET_ALL_BUTTONS:
+		for (int i = 0 ; i < NUM_BUTTONS ; i++)
+		{
+			WriteButtonState(val, i);
+		}
+		break;
+	}
+
+	return;
+}
+
+bool ReadButtonState(int buttonIndex)
+{
+	bool val;
+	switch (buttonIndex)
+	{
+	case 0:
+		val = globalState.buttonPressed.buttonState_1;
+		break;
+	case 1:
+		val = globalState.buttonPressed.buttonState_2;
+		break;
+	case 2:
+		val = globalState.buttonPressed.buttonState_3;
+		break;
+	case 3:
+		val = globalState.buttonPressed.buttonState_4;
+		break;
+	case 4:
+		val = globalState.buttonPressed.buttonState_5;
+		break;
+	case 5:
+		val = globalState.buttonPressed.buttonState_6;
+		break;
+	case 6:
+		val = globalState.buttonPressed.buttonState_7;
+		break;
+	case 7:
+		val = globalState.buttonPressed.buttonState_8;
+		break;
+	}
+	return val;
 }
 #ifdef  USE_FULL_ASSERT
 /**
