@@ -52,13 +52,14 @@
 /* USER CODE END PD */
 
 typedef enum  {false, true} bool;
+typedef enum {active, inactive, serviced} state;
 
 typedef enum {noEvent, errorRollOver, postFail, errorUndefined, letter_a, letter_b, letter_c,
 	letter_d, letter_e, letter_f, letter_g, letter_h, letter_i, letter_j, letter_k, letter_l,
 	letter_m, letter_n, letter_o, letter_p, letter_q, letter_r, letter_s, letter_t, letter_u,
 	letter_v, letter_w, letter_x, letter_y, letter_z, number_1, number_2, number_3, number_4,
 	number_5, number_6, number_7, number_8, number_9, number_0, command_Enter, command_Escape,
-	command_Delete, command_Tab, command_Space, command_Minus, command_Equal} key; // More to Add!
+	command_Delete, command_Tab, command_Space, command_Minus, command_Equal, command_Comma = 0x50, command_Period = 0x4F} key; // More to Add!
 
 typedef enum {leftCtrl, leftShift = 2, leftAlt = 4, leftGUI = 8, rightCtrl = 16,
 	rightShift = 32, rightAlt = 64,rightGUI = 128
@@ -84,15 +85,14 @@ typedef union buttonMapping
 
 typedef struct buttonStates
 {
-	uint16_t buttonState_1 : 1;
-	uint16_t buttonState_2 : 1;
-	uint16_t buttonState_3 : 1;
-	uint16_t buttonState_4 : 1;
-	uint16_t buttonState_5 : 1;
-	uint16_t buttonState_6 : 1;
-	uint16_t buttonState_7 : 1;
-	uint16_t buttonState_8 : 1;
-	uint16_t Spare : 8; // In case we need to expand and use more buttons
+	uint16_t buttonState_1 : 2;
+	uint16_t buttonState_2 : 2;
+	uint16_t buttonState_3 : 2;
+	uint16_t buttonState_4 : 2;
+	uint16_t buttonState_5 : 2;
+	uint16_t buttonState_6 : 2;
+	uint16_t buttonState_7 : 2;
+	uint16_t buttonState_8 : 2;
 } buttonStates;
 typedef struct GlobalState
 {
@@ -112,6 +112,7 @@ typedef struct GlobalState
 /* USER CODE BEGIN PV */
 bool System_Init(void);
 GlobalState globalState;
+int counter = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -119,8 +120,8 @@ void SystemClock_Config(void);
 void PollUserInput(void);
 void InitShuttle(void);
 void WriteOutputToPC(USBD_HandleTypeDef*);
-void WriteButtonState(bool val, int buttonIndex);
-bool ReadButtonState(int buttonIndex);
+void WriteButtonState(state val, int buttonIndex);
+state ReadButtonState(int buttonIndex);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -182,8 +183,8 @@ int main(void)
 
 	 // HAL_Delay(20);
 
-	  PollUserInput();
-	  WriteOutputToPC(&hUsbDeviceFS);
+	 PollUserInput();
+	 WriteOutputToPC(&hUsbDeviceFS);
 
 
 
@@ -264,10 +265,9 @@ void Error_Handler(void)
 
 void InitShuttle(void)
 {
-	WriteButtonState(false, SET_ALL_BUTTONS); // set all button states to false
-	globalState.buttonPressed.Spare = false;
+	WriteButtonState(inactive, SET_ALL_BUTTONS); // set all button states to false
 	globalState.buttonMappings[0].packet.modifier = leftShift;
-	globalState.buttonMappings[0].packet.keycode_1 = letter_d;
+	globalState.buttonMappings[0].packet.keycode_1 = command_Comma;
 	globalState.buttonMappings[1].packet.modifier = leftShift;
 	globalState.buttonMappings[1].packet.keycode_1 = letter_e;
 	globalState.buttonMappings[2].packet.modifier = leftShift;
@@ -281,68 +281,75 @@ void InitShuttle(void)
 }
 void PollUserInput(void) // poll for User Input
 {
-	 if(HAL_GPIO_ReadPin(GPIO_BUTTON_1_PORT, GPIO_BUTTON_1_PIN))
-		  {
-			  globalState.buttonPressed.buttonState_1 = true;
+	 	 if(HAL_GPIO_ReadPin(GPIO_BUTTON_1_PORT, GPIO_BUTTON_1_PIN))
+		  { if (ReadButtonState(0) == inactive)
+			  globalState.buttonPressed.buttonState_1 = active;
 		  }
 		  else
 		  {
-			  globalState.buttonPressed.buttonState_1 = false;
-
+			  globalState.buttonPressed.buttonState_1 = inactive;
 		  }
 
 		  if(HAL_GPIO_ReadPin(GPIO_BUTTON_2_PORT, GPIO_BUTTON_2_PIN))
-		  {
+		  {	if (ReadButtonState(1) == inactive)
 			  //HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);
-			  globalState.buttonPressed.buttonState_2 = true;
+			  globalState.buttonPressed.buttonState_2 = inactive;
 		  }
 		  else
 		  {
-			  globalState.buttonPressed.buttonState_2 = false;
+			  globalState.buttonPressed.buttonState_2 = inactive;
 		  }
 
 
 		  if(HAL_GPIO_ReadPin(GPIO_BUTTON_3_PORT, GPIO_BUTTON_3_PIN))
 		  {
-			  globalState.buttonPressed.buttonState_3 = true;
+			  if (ReadButtonState(2) == inactive)
+			  globalState.buttonPressed.buttonState_3 = active;
 		  }
 		  else
 		  {
-			  globalState.buttonPressed.buttonState_3 = false;
+			  globalState.buttonPressed.buttonState_3 = inactive;
 		  }
 
 		  if(HAL_GPIO_ReadPin(GPIO_BUTTON_4_PORT, GPIO_BUTTON_4_PIN))
 		  {
-			  globalState.buttonPressed.buttonState_4 = true;		  }
+			  if (ReadButtonState(3) == inactive)
+			  globalState.buttonPressed.buttonState_4 = active;		  }
 		  else
 		  {
-			  globalState.buttonPressed.buttonState_4 = false;		  }
+			  globalState.buttonPressed.buttonState_4 = inactive;		  }
 
 		  if(HAL_GPIO_ReadPin(GPIO_BUTTON_5_PORT, GPIO_BUTTON_5_PIN))
 		  {
-			  globalState.buttonPressed.buttonState_5 = true;		  }
+			  if (ReadButtonState(4) == inactive)
+			  globalState.buttonPressed.buttonState_5 = active;		  }
 		  else
 		  {
-			  globalState.buttonPressed.buttonState_5 = false;		  }
+			  globalState.buttonPressed.buttonState_5 = inactive;		  }
 }
 
 void WriteOutputToPC(USBD_HandleTypeDef* hUsbDeviceFS)
 {
 	for (int i = 0 ; i<NUM_BUTTONS; i++)
 	{
-		if (ReadButtonState(i) == true)
+		if (ReadButtonState(i) == active)
 		{
 			USBD_HID_SendReport(hUsbDeviceFS, globalState.buttonMappings[i].packetBuffer, PACKET_SIZE);
+			HAL_Delay(30);
+			WriteButtonState(serviced, i);
 			uint8_t HID_buffer[8] = {0};
 			USBD_HID_SendReport(hUsbDeviceFS, HID_buffer, PACKET_SIZE); // Send a null packet
+			HAL_Delay(200);
+			counter++;
 		}
 	}
 
-	WriteButtonState(false, SET_ALL_BUTTONS); // set all button states to false
+
+
 
 }
 
-void WriteButtonState(bool val, int buttonIndex)
+void WriteButtonState(state val, int buttonIndex)
 {
 	switch (buttonIndex)
 	{
@@ -381,9 +388,9 @@ void WriteButtonState(bool val, int buttonIndex)
 	return;
 }
 
-bool ReadButtonState(int buttonIndex)
+state ReadButtonState(int buttonIndex)
 {
-	bool val;
+	state val;
 	switch (buttonIndex)
 	{
 	case 0:
