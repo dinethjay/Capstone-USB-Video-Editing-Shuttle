@@ -59,7 +59,7 @@ typedef enum {noEvent, errorRollOver, postFail, errorUndefined, letter_a, letter
 	letter_m, letter_n, letter_o, letter_p, letter_q, letter_r, letter_s, letter_t, letter_u,
 	letter_v, letter_w, letter_x, letter_y, letter_z, number_1, number_2, number_3, number_4,
 	number_5, number_6, number_7, number_8, number_9, number_0, command_Enter, command_Escape,
-	command_Delete, command_Tab, command_Space, command_Minus, command_Equal, command_Comma = 0x50, command_Period = 0x4F} key; // More to Add!
+	command_Delete, command_Tab, command_Space, command_Minus, command_Equal, command_LeftKey = 0x50, command_RightKey = 0x4F} key; // More to Add!
 
 typedef enum {leftCtrl, leftShift = 2, leftAlt = 4, leftGUI = 8, rightCtrl = 16,
 	rightShift = 32, rightAlt = 64,rightGUI = 128
@@ -113,6 +113,8 @@ typedef struct GlobalState
 bool System_Init(void);
 GlobalState globalState;
 int counter = 0;
+extern USBD_HandleTypeDef hUsbDeviceFS;
+uint8_t HID_buffer[8] = {0};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -161,8 +163,8 @@ int main(void)
   MX_USB_DEVICE_Init();
   InitShuttle(); // Initiailize data structures
   /* USER CODE BEGIN 2 */
- extern USBD_HandleTypeDef hUsbDeviceFS;
- uint8_t HID_buffer[8] = {0};
+ //extern USBD_HandleTypeDef hUsbDeviceFS;
+ //uint8_t HID_buffer[8] = {0};
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -170,18 +172,16 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-
     /* USER CODE BEGIN 3 */
-	  //HID_buffer[0] = 2; // left shift
-	  //HID_buffer[2] = 7;
-	  //USBD_HID_SendReport(&hUsbDeviceFS, HID_buffer, 8);
-
-	  //HAL_Delay(20);
-	  //HID_buffer[0] = 0; // left shift
-	  //HID_buffer[2] = 0;
-	  //USBD_HID_SendReport(&hUsbDeviceFS, HID_buffer, 8);
-
-	 // HAL_Delay(20);
+//	  HID_buffer[0] = 2; // left shift
+//	  HID_buffer[2] = 7;
+//	  USBD_HID_SendReport(&hUsbDeviceFS, HID_buffer, 8);
+//
+//	  HAL_Delay(50);
+//	  HID_buffer[0] = 0; // left shift
+//	  HID_buffer[2] = 0;
+//	  USBD_HID_SendReport(&hUsbDeviceFS, HID_buffer, 8);
+//	  HAL_Delay(10000);
 
 	 PollUserInput();
 	 WriteOutputToPC(&hUsbDeviceFS);
@@ -267,7 +267,7 @@ void InitShuttle(void)
 {
 	WriteButtonState(inactive, SET_ALL_BUTTONS); // set all button states to false
 	globalState.buttonMappings[0].packet.modifier = leftShift;
-	globalState.buttonMappings[0].packet.keycode_1 = command_Comma;
+	globalState.buttonMappings[0].packet.keycode_1 = command_LeftKey;
 	globalState.buttonMappings[1].packet.modifier = leftShift;
 	globalState.buttonMappings[1].packet.keycode_1 = letter_e;
 	globalState.buttonMappings[2].packet.modifier = leftShift;
@@ -288,16 +288,20 @@ void PollUserInput(void) // poll for User Input
 		  else
 		  {
 			  globalState.buttonPressed.buttonState_1 = inactive;
+			  uint8_t HID_buffer[8] = {0};
+			  			USBD_HID_SendReport(&hUsbDeviceFS, HID_buffer, PACKET_SIZE); // Send a null packet
 		  }
 
 		  if(HAL_GPIO_ReadPin(GPIO_BUTTON_2_PORT, GPIO_BUTTON_2_PIN))
 		  {	if (ReadButtonState(1) == inactive)
 			  //HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);
-			  globalState.buttonPressed.buttonState_2 = inactive;
+			  globalState.buttonPressed.buttonState_2 = active;
 		  }
 		  else
 		  {
 			  globalState.buttonPressed.buttonState_2 = inactive;
+			  uint8_t HID_buffer[8] = {0};
+			  			USBD_HID_SendReport(&hUsbDeviceFS, HID_buffer, PACKET_SIZE); // Send a null packet
 		  }
 
 
@@ -309,6 +313,8 @@ void PollUserInput(void) // poll for User Input
 		  else
 		  {
 			  globalState.buttonPressed.buttonState_3 = inactive;
+			  uint8_t HID_buffer[8] = {0};
+			  			USBD_HID_SendReport(&hUsbDeviceFS, HID_buffer, PACKET_SIZE); // Send a null packet
 		  }
 
 		  if(HAL_GPIO_ReadPin(GPIO_BUTTON_4_PORT, GPIO_BUTTON_4_PIN))
@@ -317,7 +323,10 @@ void PollUserInput(void) // poll for User Input
 			  globalState.buttonPressed.buttonState_4 = active;		  }
 		  else
 		  {
-			  globalState.buttonPressed.buttonState_4 = inactive;		  }
+			  globalState.buttonPressed.buttonState_4 = inactive;
+			  uint8_t HID_buffer[8] = {0};
+			  			USBD_HID_SendReport(&hUsbDeviceFS, HID_buffer, PACKET_SIZE); // Send a null packet
+			  			}
 
 		  if(HAL_GPIO_ReadPin(GPIO_BUTTON_5_PORT, GPIO_BUTTON_5_PIN))
 		  {
@@ -325,7 +334,10 @@ void PollUserInput(void) // poll for User Input
 			  globalState.buttonPressed.buttonState_5 = active;		  }
 		  else
 		  {
-			  globalState.buttonPressed.buttonState_5 = inactive;		  }
+			  globalState.buttonPressed.buttonState_5 = inactive;
+			  uint8_t HID_buffer[8] = {0};
+			  			USBD_HID_SendReport(&hUsbDeviceFS, HID_buffer, PACKET_SIZE); // Send a null packet}
+}
 }
 
 void WriteOutputToPC(USBD_HandleTypeDef* hUsbDeviceFS)
@@ -335,17 +347,13 @@ void WriteOutputToPC(USBD_HandleTypeDef* hUsbDeviceFS)
 		if (ReadButtonState(i) == active)
 		{
 			USBD_HID_SendReport(hUsbDeviceFS, globalState.buttonMappings[i].packetBuffer, PACKET_SIZE);
-			HAL_Delay(30);
+			HAL_Delay(100);
 			WriteButtonState(serviced, i);
-			uint8_t HID_buffer[8] = {0};
-			USBD_HID_SendReport(hUsbDeviceFS, HID_buffer, PACKET_SIZE); // Send a null packet
-			HAL_Delay(200);
-			counter++;
-		}
+			USBD_HID_SendReport(hUsbDeviceFS, globalState.buttonMappings[i].packetBuffer, PACKET_SIZE);
+			HAL_Delay(100);
+			USBD_HID_SendReport(hUsbDeviceFS, globalState.buttonMappings[i].packetBuffer, PACKET_SIZE);
+			USBD_HID_SendReport(hUsbDeviceFS, globalState.buttonMappings[i].packetBuffer, PACKET_SIZE);		}
 	}
-
-
-
 
 }
 

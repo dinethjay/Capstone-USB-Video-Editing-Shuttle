@@ -1,9 +1,9 @@
-main.c:137:5:main	16	static
+main.c:139:5:main	8	static
 main.c:200:6:SystemClock_Config	112	static
 main.c:244:1:System_Init	8	static
 main.c:255:6:Error_Handler	8	static,ignoring_inline_asm
 main.c:266:6:InitShuttle	8	static
-main.c:282:6:PollUserInput	8	static
-main.c:331:6:WriteOutputToPC	32	static
-main.c:352:6:WriteButtonState	32	static
-main.c:391:7:ReadButtonState	24	static
+main.c:282:6:PollUserInput	48	static
+main.c:343:6:WriteOutputToPC	24	static
+main.c:360:6:WriteButtonState	32	static
+main.c:399:7:ReadButtonState	24	static
