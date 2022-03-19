@@ -317,7 +317,6 @@ __ALIGN_BEGIN static uint8_t USBD_HID_DeviceQualifierDesc[USB_LEN_DEV_QUALIFIER_
 
 __ALIGN_BEGIN static uint8_t HID_MOUSE_ReportDesc[HID_MOUSE_REPORT_DESC_SIZE]  __ALIGN_END =
 {
-
 	    0x05, 0x01,                    // USAGE_PAGE (Generic Desktop)
 	    0x09, 0x06,                    // USAGE (Keyboard)
 	    0xa1, 0x01,                    // COLLECTION (Application)
@@ -349,7 +348,7 @@ __ALIGN_BEGIN static uint8_t HID_MOUSE_ReportDesc[HID_MOUSE_REPORT_DESC_SIZE]  _
 	    0x19, 0x00,                    //   USAGE_MINIMUM (Reserved (no event indicated))
 	    0x29, 0x65,                    //   USAGE_MAXIMUM (Keyboard Application)
 	    0x81, 0x00,                    //   INPUT (Data,Ary,Abs)
-	    0xc0
+	    0xc0                           // END_COLLECTION
 };
 
 /**

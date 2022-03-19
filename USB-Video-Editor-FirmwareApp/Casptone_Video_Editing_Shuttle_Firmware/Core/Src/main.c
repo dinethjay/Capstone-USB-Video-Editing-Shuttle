@@ -29,6 +29,8 @@
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
+/* USER CODE END PTD */
+
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define NUM_BUTTONS 8
@@ -48,8 +50,30 @@
 #define GPIO_BUTTON_5_PORT GPIOB
 #define SET_ALL_BUTTONS 0xFFFF
 
-
 /* USER CODE END PD */
+
+/* Private macro -------------------------------------------------------------*/
+/* USER CODE BEGIN PM */
+
+/* USER CODE END PM */
+
+/* Private variables ---------------------------------------------------------*/
+I2C_HandleTypeDef hi2c2;
+
+SPI_HandleTypeDef hspi2;
+
+TIM_HandleTypeDef htim2;
+
+TSC_HandleTypeDef htsc;
+
+/* USER CODE BEGIN PV */
+
+/* USER CODE END PV */
+
+
+extern USBD_HandleTypeDef hUsbDeviceFS;
+
+
 
 typedef enum  {false, true} bool;
 typedef enum {active, inactive, serviced} state;
@@ -59,9 +83,10 @@ typedef enum {noEvent, errorRollOver, postFail, errorUndefined, letter_a, letter
 	letter_m, letter_n, letter_o, letter_p, letter_q, letter_r, letter_s, letter_t, letter_u,
 	letter_v, letter_w, letter_x, letter_y, letter_z, number_1, number_2, number_3, number_4,
 	number_5, number_6, number_7, number_8, number_9, number_0, command_Enter, command_Escape,
-	command_Delete, command_Tab, command_Space, command_Minus, command_Equal, command_LeftKey = 0x50, command_RightKey = 0x4F} key; // More to Add!
+	command_Delete, command_Tab, command_Space, command_Minus, command_Equal, command_LeftKey = 0x50, command_RightKey = 0x4F,
+	command_Spacebar = 0x2C} key; // More to Add!
 
-typedef enum {leftCtrl, leftShift = 2, leftAlt = 4, leftGUI = 8, rightCtrl = 16,
+typedef enum {leftCtrl = 1, leftShift = 2, leftAlt = 4, leftGUI = 8, rightCtrl = 16,
 	rightShift = 32, rightAlt = 64,rightGUI = 128
 } modifier;
 typedef struct
@@ -99,37 +124,50 @@ typedef struct GlobalState
 	buttonMapping buttonMappings[NUM_BUTTONS];
 	buttonStates buttonPressed;
 } GlobalState; // holds state
-/* USER CODE END PTD */
 
-
-/* Private macro -------------------------------------------------------------*/
-/* USER CODE BEGIN PM */
-
-/* USER CODE END PM */
-
-/* Private variables ---------------------------------------------------------*/
-
-/* USER CODE BEGIN PV */
-bool System_Init(void);
-GlobalState globalState;
-int counter = 0;
-extern USBD_HandleTypeDef hUsbDeviceFS;
-uint8_t HID_buffer[8] = {0};
-/* USER CODE END PV */
-
-/* Private function prototypes -----------------------------------------------*/
-void SystemClock_Config(void);
-void PollUserInput(void);
-void InitShuttle(void);
-void WriteOutputToPC(USBD_HandleTypeDef*);
-void WriteButtonState(state val, int buttonIndex);
-state ReadButtonState(int buttonIndex);
-/* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+/* Private function prototypes -----------------------------------------------*/
+void SystemClock_Config(void);
+static void MX_I2C2_Init(void);
+static void MX_SPI2_Init(void);
+static void MX_TSC_Init(void);
+static void MX_TIM2_Init(void);
+//static void MX_GPIO_Init(void);
+/* USER CODE BEGIN PFP */
+
+void PollUserInput(void);
+void InitShuttle(void);
+void WriteOutputToPC(USBD_HandleTypeDef*);
+void WriteButtonState(state val, int buttonIndex);
+state ReadButtonState(int buttonIndex);
+
+/* USER CODE BEGIN PV */
+bool System_Init(void);
+GlobalState globalState;
+uint8_t testbuf[8] = {0};
+packetStruct keyboardhid = {0};
+// Encoder Test Variables
+int counter = 0;
+int16_t count =0; // defined to deal with underflow of case of counter going below 0
+int16_t position = 0; //position of encoder
+int16_t old_position = 0;
+extern USBD_HandleTypeDef hUsbDeviceFS;
+//uint8_t HID_buffer[8] = {0};
+/* USER CODE END PV */
+
+
+void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
+
+	counter = __HAL_TIM_GET_COUNTER(htim);
+	count = (int16_t)counter;
+	position = count/4;
+
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -155,40 +193,69 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-  System_Init(); // Initialize all variables;
+
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_I2C2_Init();
+  MX_SPI2_Init();
+  MX_TSC_Init();
+  MX_TIM2_Init();
   MX_USB_DEVICE_Init();
   InitShuttle(); // Initiailize data structures
   /* USER CODE BEGIN 2 */
- //extern USBD_HandleTypeDef hUsbDeviceFS;
- //uint8_t HID_buffer[8] = {0};
+
+  HAL_TIM_Encoder_Start_IT(&htim2, TIM_CHANNEL_ALL);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+
+
+	  PollUserInput();
+	  WriteOutputToPC(&hUsbDeviceFS);
+
+
+		 if (position > old_position) {
+			 HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, 1); //red LED
+			 HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, 0);
+			 HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, 0);
+			 old_position = position;
+			 HAL_Delay(50);
+
+
+			 keyboardhid.keycode_1 = 0x4F; // right arrow
+		 } else if (position < old_position) {
+			 HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, 1); // blue LED
+			 HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, 0);
+			 HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, 0);
+			 old_position = position;
+			 HAL_Delay(50);
+
+			 keyboardhid.keycode_1 = 0x50; // left arrow
+
+
+		 } else if (position == old_position) {
+			 HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, 0);
+			 HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, 0);
+			 HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, 1); // yellow LED
+
+		 }
+
+		  USBD_HID_SendReport(&hUsbDeviceFS, &keyboardhid, sizeof(keyboardhid));
+		  HAL_Delay(50);
+		  keyboardhid.keycode_1 = 0x00; // release key
+		  USBD_HID_SendReport(&hUsbDeviceFS, &keyboardhid, sizeof(keyboardhid));
+
+
+
     /* USER CODE END WHILE */
+
     /* USER CODE BEGIN 3 */
-//	  HID_buffer[0] = 2; // left shift
-//	  HID_buffer[2] = 7;
-//	  USBD_HID_SendReport(&hUsbDeviceFS, HID_buffer, 8);
-//
-//	  HAL_Delay(50);
-//	  HID_buffer[0] = 0; // left shift
-//	  HID_buffer[2] = 0;
-//	  USBD_HID_SendReport(&hUsbDeviceFS, HID_buffer, 8);
-//	  HAL_Delay(10000);
-
-	 PollUserInput();
-	 WriteOutputToPC(&hUsbDeviceFS);
-
-
-
-
   }
   /* USER CODE END 3 */
 }
@@ -206,14 +273,9 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_HSI48;
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48;
   RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL6;
-  RCC_OscInitStruct.PLL.PREDIV = RCC_PREDIV_DIV1;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -222,7 +284,7 @@ void SystemClock_Config(void)
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI48;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
 
@@ -239,46 +301,241 @@ void SystemClock_Config(void)
   }
 }
 
-/* USER CODE BEGIN 4 */
-bool			// Returns whether system was initialized successfully
-System_Init
-(void)
-{
-	return false;
-}
-/* USER CODE END 4 */
-
 /**
-  * @brief  This function is executed in case of error occurrence.
+  * @brief I2C2 Initialization Function
+  * @param None
   * @retval None
   */
-void Error_Handler(void)
+static void MX_I2C2_Init(void)
 {
-  /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
-  __disable_irq();
-  while (1)
+
+  /* USER CODE BEGIN I2C2_Init 0 */
+
+  /* USER CODE END I2C2_Init 0 */
+
+  /* USER CODE BEGIN I2C2_Init 1 */
+
+  /* USER CODE END I2C2_Init 1 */
+  hi2c2.Instance = I2C2;
+  hi2c2.Init.Timing = 0x20303E5D;
+  hi2c2.Init.OwnAddress1 = 0;
+  hi2c2.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c2.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c2.Init.OwnAddress2 = 0;
+  hi2c2.Init.OwnAddress2Masks = I2C_OA2_NOMASK;
+  hi2c2.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c2.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c2) != HAL_OK)
   {
+    Error_Handler();
   }
-  /* USER CODE END Error_Handler_Debug */
+  /** Configure Analogue filter
+  */
+  if (HAL_I2CEx_ConfigAnalogFilter(&hi2c2, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure Digital filter
+  */
+  if (HAL_I2CEx_ConfigDigitalFilter(&hi2c2, 0) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2C2_Init 2 */
+
+  /* USER CODE END I2C2_Init 2 */
+
 }
+
+/**
+  * @brief SPI2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_SPI2_Init(void)
+{
+
+  /* USER CODE BEGIN SPI2_Init 0 */
+
+  /* USER CODE END SPI2_Init 0 */
+
+  /* USER CODE BEGIN SPI2_Init 1 */
+
+  /* USER CODE END SPI2_Init 1 */
+  /* SPI2 parameter configuration*/
+  hspi2.Instance = SPI2;
+  hspi2.Init.Mode = SPI_MODE_MASTER;
+  hspi2.Init.Direction = SPI_DIRECTION_2LINES;
+  hspi2.Init.DataSize = SPI_DATASIZE_4BIT;
+  hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
+  hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
+  hspi2.Init.NSS = SPI_NSS_SOFT;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
+  hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
+  hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  hspi2.Init.CRCPolynomial = 7;
+  hspi2.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
+  hspi2.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
+  if (HAL_SPI_Init(&hspi2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN SPI2_Init 2 */
+
+  /* USER CODE END SPI2_Init 2 */
+
+}
+
+/**
+  * @brief TIM2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM2_Init(void)
+{
+
+  /* USER CODE BEGIN TIM2_Init 0 */
+
+  /* USER CODE END TIM2_Init 0 */
+
+  TIM_Encoder_InitTypeDef sConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM2_Init 1 */
+
+  /* USER CODE END TIM2_Init 1 */
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 0;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 4294967295;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  sConfig.EncoderMode = TIM_ENCODERMODE_TI12;
+  sConfig.IC1Polarity = TIM_ICPOLARITY_FALLING;
+  sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
+  sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
+  sConfig.IC1Filter = 0;
+  sConfig.IC2Polarity = TIM_ICPOLARITY_FALLING;
+  sConfig.IC2Selection = TIM_ICSELECTION_DIRECTTI;
+  sConfig.IC2Prescaler = TIM_ICPSC_DIV1;
+  sConfig.IC2Filter = 0;
+  if (HAL_TIM_Encoder_Init(&htim2, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM2_Init 2 */
+
+  /* USER CODE END TIM2_Init 2 */
+
+}
+
+/**
+  * @brief TSC Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TSC_Init(void)
+{
+
+  /* USER CODE BEGIN TSC_Init 0 */
+
+  /* USER CODE END TSC_Init 0 */
+
+  /* USER CODE BEGIN TSC_Init 1 */
+
+  /* USER CODE END TSC_Init 1 */
+  /** Configure the TSC peripheral
+  */
+  htsc.Instance = TSC;
+  htsc.Init.CTPulseHighLength = TSC_CTPH_2CYCLES;
+  htsc.Init.CTPulseLowLength = TSC_CTPL_2CYCLES;
+  htsc.Init.SpreadSpectrum = DISABLE;
+  htsc.Init.SpreadSpectrumDeviation = 1;
+  htsc.Init.SpreadSpectrumPrescaler = TSC_SS_PRESC_DIV1;
+  htsc.Init.PulseGeneratorPrescaler = TSC_PG_PRESC_DIV4;
+  htsc.Init.MaxCountValue = TSC_MCV_8191;
+  htsc.Init.IODefaultMode = TSC_IODEF_OUT_PP_LOW;
+  htsc.Init.SynchroPinPolarity = TSC_SYNC_POLARITY_FALLING;
+  htsc.Init.AcquisitionMode = TSC_ACQ_MODE_NORMAL;
+  htsc.Init.MaxCountInterrupt = DISABLE;
+  htsc.Init.ChannelIOs = TSC_GROUP1_IO3|TSC_GROUP2_IO3|TSC_GROUP3_IO2;
+  htsc.Init.ShieldIOs = 0;
+  htsc.Init.SamplingIOs = TSC_GROUP1_IO4|TSC_GROUP2_IO4|TSC_GROUP3_IO3;
+  if (HAL_TSC_Init(&htsc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TSC_Init 2 */
+
+  /* USER CODE END TSC_Init 2 */
+
+}
+
+/**
+  * @brief GPIO Initialization Function
+  * @param None
+  * @retval None
+  */
+
+//static void MX_GPIO_Init(void)
+//{
+//  GPIO_InitTypeDef GPIO_InitStruct = {0};
+//
+//  /* GPIO Ports Clock Enable */
+//  __HAL_RCC_GPIOF_CLK_ENABLE();
+//  __HAL_RCC_GPIOC_CLK_ENABLE();
+//  __HAL_RCC_GPIOA_CLK_ENABLE();
+//  __HAL_RCC_GPIOB_CLK_ENABLE();
+//
+//  /*Configure GPIO pin Output Level */
+//  HAL_GPIO_WritePin(GPIOC, NCS_MEMS_SPI_Pin|EXT_RESET_Pin|LD3_Pin|LD6_Pin
+//                          |LD4_Pin|LD5_Pin, GPIO_PIN_RESET);
+//
+//  /*Configure GPIO pins : NCS_MEMS_SPI_Pin EXT_RESET_Pin LD3_Pin LD6_Pin
+//                           LD4_Pin LD5_Pin */
+//  GPIO_InitStruct.Pin = NCS_MEMS_SPI_Pin|EXT_RESET_Pin|LD3_Pin|LD6_Pin
+//                          |LD4_Pin|LD5_Pin;
+//  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+//  GPIO_InitStruct.Pull = GPIO_NOPULL;
+//  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+//  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+//
+//  /*Configure GPIO pins : MEMS_INT1_Pin MEMS_INT2_Pin */
+//  GPIO_InitStruct.Pin = MEMS_INT1_Pin|MEMS_INT2_Pin;
+//  GPIO_InitStruct.Mode = GPIO_MODE_EVT_RISING;
+//  GPIO_InitStruct.Pull = GPIO_NOPULL;
+//  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+//
+//  /*Configure GPIO pin : B1_Pin */
+//  GPIO_InitStruct.Pin = B1_Pin;
+//  GPIO_InitStruct.Mode = GPIO_MODE_EVT_RISING;
+//  GPIO_InitStruct.Pull = GPIO_NOPULL;
+//  HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
+//
+//}
 
 void InitShuttle(void)
 {
 	WriteButtonState(inactive, SET_ALL_BUTTONS); // set all button states to false
-	globalState.buttonMappings[0].packet.modifier = leftShift;
-	globalState.buttonMappings[0].packet.keycode_1 = command_LeftKey;
-	globalState.buttonMappings[1].packet.modifier = leftShift;
-	globalState.buttonMappings[1].packet.keycode_1 = letter_e;
-	globalState.buttonMappings[2].packet.modifier = leftShift;
+	globalState.buttonMappings[0].packet.modifier = 0;
+	globalState.buttonMappings[0].packet.keycode_1 = command_Spacebar;
+	globalState.buttonMappings[1].packet.modifier = leftCtrl;
+	globalState.buttonMappings[1].packet.keycode_1 = letter_t;
+	globalState.buttonMappings[2].packet.modifier = 0;
 	globalState.buttonMappings[2].packet.keycode_1 = letter_f;
-	globalState.buttonMappings[3].packet.modifier = leftShift;
+	globalState.buttonMappings[3].packet.modifier = 0;
 	globalState.buttonMappings[3].packet.keycode_1 = letter_g;
-	globalState.buttonMappings[4].packet.modifier = leftShift;
+	globalState.buttonMappings[4].packet.modifier = 0;
 	globalState.buttonMappings[4].packet.keycode_1 = letter_h;
-
-
 }
+
 void PollUserInput(void) // poll for User Input
 {
 	 	 if(HAL_GPIO_ReadPin(GPIO_BUTTON_1_PORT, GPIO_BUTTON_1_PIN))
@@ -288,8 +545,8 @@ void PollUserInput(void) // poll for User Input
 		  else
 		  {
 			  globalState.buttonPressed.buttonState_1 = inactive;
-			  uint8_t HID_buffer[8] = {0};
-			  			USBD_HID_SendReport(&hUsbDeviceFS, HID_buffer, PACKET_SIZE); // Send a null packet
+				uint8_t HID_buffer[8] = {0};
+			  USBD_HID_SendReport(&hUsbDeviceFS, HID_buffer, PACKET_SIZE); // Send a null packet
 		  }
 
 		  if(HAL_GPIO_ReadPin(GPIO_BUTTON_2_PORT, GPIO_BUTTON_2_PIN))
@@ -300,8 +557,8 @@ void PollUserInput(void) // poll for User Input
 		  else
 		  {
 			  globalState.buttonPressed.buttonState_2 = inactive;
-			  uint8_t HID_buffer[8] = {0};
-			  			USBD_HID_SendReport(&hUsbDeviceFS, HID_buffer, PACKET_SIZE); // Send a null packet
+				uint8_t HID_buffer[8] = {0};
+			  USBD_HID_SendReport(&hUsbDeviceFS, HID_buffer, PACKET_SIZE); // Send a null packet
 		  }
 
 
@@ -313,8 +570,8 @@ void PollUserInput(void) // poll for User Input
 		  else
 		  {
 			  globalState.buttonPressed.buttonState_3 = inactive;
-			  uint8_t HID_buffer[8] = {0};
-			  			USBD_HID_SendReport(&hUsbDeviceFS, HID_buffer, PACKET_SIZE); // Send a null packet
+				uint8_t HID_buffer[8] = {0};
+			  USBD_HID_SendReport(&hUsbDeviceFS, HID_buffer, PACKET_SIZE); // Send a null packet
 		  }
 
 		  if(HAL_GPIO_ReadPin(GPIO_BUTTON_4_PORT, GPIO_BUTTON_4_PIN))
@@ -324,8 +581,8 @@ void PollUserInput(void) // poll for User Input
 		  else
 		  {
 			  globalState.buttonPressed.buttonState_4 = inactive;
-			  uint8_t HID_buffer[8] = {0};
-			  			USBD_HID_SendReport(&hUsbDeviceFS, HID_buffer, PACKET_SIZE); // Send a null packet
+				uint8_t HID_buffer[8] = {0};
+	   		USBD_HID_SendReport(&hUsbDeviceFS, HID_buffer, PACKET_SIZE); // Send a null packet
 			  			}
 
 		  if(HAL_GPIO_ReadPin(GPIO_BUTTON_5_PORT, GPIO_BUTTON_5_PIN))
@@ -335,9 +592,14 @@ void PollUserInput(void) // poll for User Input
 		  else
 		  {
 			  globalState.buttonPressed.buttonState_5 = inactive;
-			  uint8_t HID_buffer[8] = {0};
-			  			USBD_HID_SendReport(&hUsbDeviceFS, HID_buffer, PACKET_SIZE); // Send a null packet}
+				uint8_t HID_buffer[8] = {0};
+			  USBD_HID_SendReport(&hUsbDeviceFS, HID_buffer, PACKET_SIZE); // Send a null packet}
 }
+				/*HAL_Delay(100);
+				USBD_HID_SendReport(&hUsbDeviceFS, HID_buffer, PACKET_SIZE);
+				HAL_Delay(100);
+				USBD_HID_SendReport(&hUsbDeviceFS, HID_buffer, PACKET_SIZE);
+				USBD_HID_SendReport(&hUsbDeviceFS, HID_buffer, PACKET_SIZE);*/
 }
 
 void WriteOutputToPC(USBD_HandleTypeDef* hUsbDeviceFS)
@@ -349,12 +611,12 @@ void WriteOutputToPC(USBD_HandleTypeDef* hUsbDeviceFS)
 			USBD_HID_SendReport(hUsbDeviceFS, globalState.buttonMappings[i].packetBuffer, PACKET_SIZE);
 			HAL_Delay(100);
 			WriteButtonState(serviced, i);
-			USBD_HID_SendReport(hUsbDeviceFS, globalState.buttonMappings[i].packetBuffer, PACKET_SIZE);
+		    USBD_HID_SendReport(hUsbDeviceFS, globalState.buttonMappings[i].packetBuffer, PACKET_SIZE);
 			HAL_Delay(100);
-			USBD_HID_SendReport(hUsbDeviceFS, globalState.buttonMappings[i].packetBuffer, PACKET_SIZE);
-			USBD_HID_SendReport(hUsbDeviceFS, globalState.buttonMappings[i].packetBuffer, PACKET_SIZE);		}
+			//USBD_HID_SendReport(hUsbDeviceFS, globalState.buttonMappings[i].packetBuffer, PACKET_SIZE);
+			//USBD_HID_SendReport(hUsbDeviceFS, globalState.buttonMappings[i].packetBuffer, PACKET_SIZE);
+		}
 	}
-
 }
 
 void WriteButtonState(state val, int buttonIndex)
@@ -428,6 +690,26 @@ state ReadButtonState(int buttonIndex)
 	}
 	return val;
 }
+
+/* USER CODE BEGIN 4 */
+
+/* USER CODE END 4 */
+
+/**
+  * @brief  This function is executed in case of error occurrence.
+  * @retval None
+  */
+void Error_Handler(void)
+{
+  /* USER CODE BEGIN Error_Handler_Debug */
+  /* User can add his own implementation to report the HAL error return state */
+  __disable_irq();
+  while (1)
+  {
+  }
+  /* USER CODE END Error_Handler_Debug */
+}
+
 #ifdef  USE_FULL_ASSERT
 /**
   * @brief  Reports the name of the source file and the source line number
